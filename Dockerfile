@@ -17,6 +17,7 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
+COPY docs ./docs
 # --omit=dev incluye el CLI de prisma (dependencias): migrate deploy corre en el arranque
 RUN npm ci --omit=dev --no-audit --no-fund && npx prisma generate
 COPY --from=build /app/dist ./dist

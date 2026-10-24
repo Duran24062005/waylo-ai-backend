@@ -27,6 +27,7 @@ docker compose exec api node dist/seed/ips.js
 # verificar
 docker compose ps            # api → healthy
 curl https://<tu-dominio>/health   # {"status":"ok"}
+# Swagger UI: https://<tu-dominio>/docs  (contrato interno; JSON en /docs/json)
 docker compose logs -f api   # migraciones + arranque
 ```
 

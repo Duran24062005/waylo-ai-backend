@@ -4,3 +4,6 @@ coverage/
 .env
 *.log
 .DS_Store
+# emits accidentales de tsc fuera de dist/ (solo si se rompe el tsconfig)
+src/**/*.js
+test/**/*.js

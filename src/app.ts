@@ -1,5 +1,10 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { parse } from 'yaml';
 import type { PrismaClient } from '@prisma/client';
 import { ZodError } from 'zod';
 import type { Config } from './config';
@@ -50,6 +55,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setNotFoundHandler((_req, reply) =>
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Ruta no encontrada' } }),
   );
+
+  // Swagger UI en /docs, sirviendo el contrato canónico tal cual
+  // (docs/waylo-api.openapi.yaml: única fuente de verdad; el frontend genera sus tipos de ahí)
+  const openapi = parse(readFileSync(resolve(__dirname, '../docs/waylo-api.openapi.yaml'), 'utf8'));
+  await app.register(swagger, { openapi });
+  await app.register(swaggerUi, {
+    routePrefix: '/docs',
+    staticCSP: true,
+    uiConfig: { docExpansion: 'none', deepLinking: true },
+  });
 
   registerHealthRoutes(app, deps);
   registerAuthRoutes(app, deps);
