@@ -1,0 +1,6 @@
+# Caddy — proxy con HTTPS automático (Let's Encrypt) para la API de Waylo.
+# El dominio WAYLO_DOMAIN debe apuntar al VPS (puertos 80/443 abiertos).
+{$WAYLO_DOMAIN} {
+    encode gzip
+    reverse_proxy api:3001
+}

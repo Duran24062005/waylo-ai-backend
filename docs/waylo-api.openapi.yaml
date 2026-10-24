@@ -324,9 +324,9 @@ components:
           properties:
             code:
               type: string
-              enum: [INVALID_CREDENTIALS, EMAIL_TAKEN, LINK_EXISTS, LINK_INVALID,
-                     NO_ACTIVE_LINK, NO_LOCATION, IPS_UNAVAILABLE, LLM_UNAVAILABLE,
-                     VALIDATION, INTERNAL]
+              enum: [INVALID_CREDENTIALS, UNAUTHORIZED, NOT_FOUND, EMAIL_TAKEN, LINK_EXISTS,
+                     LINK_INVALID, NO_ACTIVE_LINK, NO_LOCATION, IPS_UNAVAILABLE,
+                     LLM_UNAVAILABLE, VALIDATION, INTERNAL]
             message: { type: string }
 
     RegisterRequest:
@@ -374,6 +374,12 @@ components:
           maxLength: 120
           description: Requerido por contratos que lo exigen (Confianza IPS)
         activation_code: { type: string, pattern: '^\d{6}$' }
+        ips_id:
+          type: string
+          maxLength: 64
+          description: >
+            Slug de la IPS en el registro multi-IPS. Obligatorio si hay más de una IPS
+            activa; si hay una sola, se usa por defecto.
 
     IpsLinkStateResponse:
       type: object

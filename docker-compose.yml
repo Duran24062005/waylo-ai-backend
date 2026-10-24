@@ -1,0 +1,83 @@
+# Waylo — despliegue (VPS + Docker Compose). Ver deploy.md
+# Requisitos: Docker + Compose en el VPS, dominio apuntando al VPS, .env listo.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: waylo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?obligatoria en .env}
+      POSTGRES_DB: waylo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Solo localhost: accesible desde la máquina (psql/seed/backups), nunca público
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waylo -d waylo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Sin puertos públicos: solo la red interna del compose
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://waylo:${POSTGRES_PASSWORD}@db:5432/waylo
+      APP_SECRET: ${APP_SECRET:?obligatoria en .env}
+      IPS_TOKEN_KEY: ${IPS_TOKEN_KEY:?obligatoria en .env}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      CONFIANZA_BASE_URL: ${CONFIANZA_BASE_URL:-}
+      CONFIANZA_AGENT_KEY: ${CONFIANZA_AGENT_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      EMERGENCY_PHONE: ${EMERGENCY_PHONE:-}
+      MENTAL_HEALTH_PHONE: ${MENTAL_HEALTH_PHONE:-}
+      VOICE_BUDGET_MONTHLY_USD: ${VOICE_BUDGET_MONTHLY_USD:-10}
+    expose:
+      - "3001"
+    # localhost para probar en local y debug en el VPS (el público va por Caddy).
+    # Choca con `npm run dev` local? → pon API_PORT=3002 en .env
+    ports:
+      - "127.0.0.1:${API_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # HTTPS público: solo en el VPS → docker compose --profile https up -d --build
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WAYLO_DOMAIN: ${WAYLO_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

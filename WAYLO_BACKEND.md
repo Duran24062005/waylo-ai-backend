@@ -8,15 +8,15 @@ IA que según los síntomas clasifica el caso en un nivel **N0–N4** y ejecuta 
 
 ## Alcance funcional (MVP)
 
-- [ ] **Cuentas:** registrar (email + contraseña), entrar, salir. **Baja = borrado total** en Waylo, con aviso previo de citas vigentes (no se cancelan ni se tocan).
-- [ ] **Multi-IPS con contratos distintos:** cada institución prestadora es un registro en BD con su propia API, credenciales, `service_ids`, carpeta RAG y **mapeo de contrato** (endpoints, métodos, autenticación, headers, parámetros, request/response body). **Una IPS activa por cuenta.**
+- [x] **Cuentas:** registrar (email + contraseña), entrar, salir. **Baja = borrado total** en Waylo, con aviso previo de citas vigentes (no se cancelan ni se tocan). *(hecho)*
+- [x] **Multi-IPS con contratos distintos:** cada institución prestadora es un registro en BD con su propia API, credenciales, `service_ids`, carpeta RAG y **mapeo de contrato** (endpoints, métodos, autenticación, headers, parámetros, request/response body). **Una IPS activa por cuenta.** *(hecho: registro + dispatch por `contract_mapping.adapter`)*
 - [ ] **Vínculo con la IPS activa:** documento + código de activación de 6 dígitos emitido por esa institución. Al vincular, sus datos **sobreescriben** los locales. **Desvinculación bidireccional:** el usuario puede desvincular su cuenta y la IPS puede desactivar al usuario; Waylo lo detecta por un error de auth (401/403 o paciente inactivo) en cualquier llamada, marca el vínculo inactivo, avisa y degrada — N0, N3 y N4 siguen (base propia de hospitales), N1/N2 piden reactivar. Las citas vigentes se muestran con aviso pero **no se gestionan** hasta reactivar. La cuenta local **no** se borra. Cambiar de IPS = desvincular y reactivar.
 - [ ] **Uso sin vínculo:** permitido. Waylo pide fecha de nacimiento y sexo para contexto/triage; N1/N2 sí exigen el vínculo para agendar.
 - [ ] **Chat de texto** con Grok (streaming por WebSocket).
 - [ ] **Voz speech-to-speech** con Grok (incluida en el MVP).
 - [ ] **Proveedor IA parametrizado:** `baseUrl` y `apiKey` en variables de entorno.
 - [ ] **RAG de contexto de la IPS:** documentos markdown en el repo, **una carpeta por institución**, indexados al arrancar. No es RAG clínico.
-- [ ] **`IpsClient` con modelo canónico:** Waylo define su modelo interno (paciente, cita, cupo, sede...). Cada IPS se conecta con un **adaptador** que traduce de ese modelo al contrato real de la institución. El mock implementa el modelo canónico.
+- [x] **`IpsClient` con modelo canónico:** Waylo define su modelo interno (paciente, cita, cupo, sede...). Cada IPS se conecta con un **adaptador** que traduce de ese modelo al contrato real de la institución. El mock implementa el modelo canónico. *(hecho: mock + Confianza)*
 - [ ] **Sincronización en vivo con memoria de respaldo:** si la IPS falla o tarda, Waylo responde desde su caché persistente de solo lectura **claveada por IPS** (en salud no se puede quedar en silencio); **crear** citas exige la IPS viva → mensaje claro si no está.
 - [ ] **Contexto del usuario inyectado** en la conversación: nombre, sexo, fecha de nacimiento, EPS, sede vinculada e historia clínica (**solo lectura**, se lee de la IPS; la caché de respaldo es temporal, no un espejo editable).
 - [ ] **Tools de citas** (function calling): consultar, solicitar, cancelar y reprogramar citas.

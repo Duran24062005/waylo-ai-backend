@@ -1,0 +1,29 @@
+{
+  "name": "waylo-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend de Waylo: triage N0–N4, vínculo IPS, chat y voz (fases 0+)",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed:ips": "tsx src/seed/ips.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@prisma/client": "^6.3.0",
+    "fastify": "^5.2.0",
+    "prisma": "^6.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
