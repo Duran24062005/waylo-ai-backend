@@ -85,14 +85,14 @@ Qué **toda institución** debe poder satisfacer para conectarse a Waylo. Record
 | # | Operación | Endpoint real | Estado |
 |---|-----------|---------------|--------|
 | 1 | `exchange_activation` | `POST /integrations/agent/token` | ✅ existe |
-| 2 | `get_patient` | `GET /patients/me` | ⚠️ **falta la sede vinculada** |
+| 2 | `get_patient` | `GET /patients/me` | ⚠️ **falta `sex` y la sede vinculada** |
 | 3 | `earliest_availability` | `GET /availability/earliest` | ❌ no existe (hoy `/availability` exige médico y fecha; debe traer además `site_id` por cupo) |
 | 4 | `create_appointment` | `POST /appointments` | ⚠️ **falta `type`** |
 | 5 | `list_appointments` | `GET /appointments` | ✅ existe |
 | 6 | `cancel_appointment` | `POST /appointments/{id}/status` | ✅ existe |
 | 7 | `reschedule_appointment` | `POST /appointments/{id}/reschedule` | ✅ existe |
-| 8 | `get_clinical_history` | — | ❌ no existe para el token del agente |
+| 8 | `get_clinical_history` | `GET /clinical/patients/{id}` | ⚠️ endpoint **existe**; verificar acceso con token de agente |
 | 9 | `get_confirmation_document` | `POST /documents/appointments/{id}/confirmation` | ✅ existe |
 | 10 | `list_sites` y catálogos | `GET /sites`, `/services`, `/doctors` | ✅ existen (sin coordenadas; no hacen falta) |
 
-**Pendiente con la Confianza IPS:** los cambios que se le pidieron siguen **sin aprobar** (se retoman luego). Este contrato mínimo es la referencia de lo obligatorio: lo que la institución necesita cerrar (1, 2 con sede, 3, 4 con `type` y 8) es exactamente la brecha de la tabla anterior.
+**Pendiente con la Confianza IPS:** los cambios que se le pidieron siguen **sin aprobar** (se retoman luego). El desglose de la brecha actual (op. 2 con `sex` y sede, op. 3, `type` recomendado y acceso de la op. 8) con propuestas concretas está en `IPS_CONTRATO_FEEDBACK.md`.
