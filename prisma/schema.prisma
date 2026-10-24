@@ -1,0 +1,229 @@
+// Waylo — schema Prisma (PostgreSQL + pgvector)
+// Fuente de verdad del modelo: WAYLO_IMPLEMENTACION.md §2
+// Comandos: npx prisma generate · npx prisma migrate dev · npx prisma studio
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector] // pgvector: extensión "vector"
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+/// Estados del vínculo cuenta ↔ IPS. "none" no existe aquí: es la ausencia de fila.
+enum IpsLinkStatus {
+  ACTIVE // vínculo activo
+  UNLINKED // el usuario lo desvinculó
+  DEACTIVATED // la IPS desactivó al usuario (detectado por error de auth)
+}
+
+/// Cómo autentica Waylo contra cada IPS (parte del contrato de cada institución).
+enum IpsAuthType {
+  HEADER_KEY // p.ej. X-Confianza-Agent-Key
+  BEARER // Authorization: Bearer <token>
+  BASIC
+  OAUTH2
+}
+
+enum CacheKind {
+  PATIENT
+  APPOINTMENTS
+  SITES
+  CLINICAL
+}
+
+enum TriageLevel {
+  N0
+  N1
+  N2
+  N3
+  N4
+}
+
+enum CalendarStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+// ── Entidades ────────────────────────────────────────────────────────────────
+
+/// users — cuenta local de Waylo. Baja de cuenta = borrado físico total.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  profile UserProfile?
+  link    IpsLink?
+  sessions Session[]
+  calendar CalendarLink?
+
+  @@map("users")
+}
+
+/// user_profiles — datos locales del usuario SIN vínculo (Waylo los pide para contexto/N0).
+/// Al vincular, los campos de la IPS tienen prioridad en GET /me.
+model UserProfile {
+  id        String    @id @default(cuid())
+  userId    String    @unique @map("user_id")
+  sex       String?
+  birthDate DateTime? @db.Date @map("birth_date")
+  city      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+/// ips — registro multi-IPS. contractMapping = mitad declarativa del adaptador híbrido
+/// (endpoints, método, auth, headers, extracción de campos). Secretos: NO viven aquí.
+model Ips {
+  id              String      @id @default(cuid())
+  name            String
+  slug            String      @unique
+  baseUrl         String      @map("base_url")
+  authType        IpsAuthType @default(HEADER_KEY) @map("auth_type")
+  contractMapping Json        @map("contract_mapping")
+  serviceIds      Json        @map("service_ids")
+  ragDir          String      @map("rag_dir")
+  active          Boolean     @default(true)
+
+  links       IpsLink[]
+  cacheEntries CacheEntry[]
+  ragChunks   RagChunk[]
+
+  @@map("ips")
+}
+
+/// ips_links — UNA fila por usuario (user_id único): una IPS activa por cuenta.
+/// Reactivar o cambiar de IPS = UPDATE de la misma fila. Estados vía IpsLinkStatus.
+model IpsLink {
+  id              String        @id @default(cuid())
+  userId          String        @unique @map("user_id")
+  ipsId           String        @map("ips_id")
+  documentType    String        @map("document_type")
+  documentNumber  String        @map("document_number") // PII: candidato a cifrado en la app
+  patientId       Int           @map("patient_id") // id del paciente EN la IPS, nunca del chat
+  // Token de la IPS de ESTE vínculo: cifrado en la aplicación. Vencido → pedir código nuevo.
+  accessTokenEncrypted String?  @map("access_token_encrypted")
+  tokenExpiresAt       DateTime? @map("token_expires_at")
+  status          IpsLinkStatus @default(ACTIVE)
+  linkedAt        DateTime      @default(now()) @map("linked_at")
+  statusChangedAt DateTime      @default(now()) @map("status_changed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ips  Ips  @relation(fields: [ipsId], references: [id], onDelete: Restrict)
+
+  @@map("ips_links")
+}
+
+/// sessions — sesión de la web app. El cliente solo lleva la cookie; aquí el hash.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+/// consents — prueba de consentimiento (Ley 1581).
+/// user_id guarda el HASH con sal del id: sin FK, se conserva tras el borrado de la cuenta.
+model Consent {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id") // hash seudonimizado, sin FK
+  textVersion String   @map("text_version")
+  grantedAt   DateTime @default(now()) @map("granted_at")
+  source      String // registro | chat
+
+  @@index([userId])
+  @@map("consents")
+}
+
+/// cache_entries — memoria de respaldo de solo lectura (IPS caída/lenta).
+/// ES dato de salud: `value` se cifra en la aplicación antes de persistir.
+model CacheEntry {
+  id        String    @id @default(cuid())
+  ipsId     String    @map("ips_id")
+  kind      CacheKind
+  key       String
+  value     Json
+  fetchedAt DateTime  @default(now()) @map("fetched_at")
+  expiresAt DateTime  @map("expires_at")
+
+  ips Ips @relation(fields: [ipsId], references: [id], onDelete: Cascade)
+
+  @@unique([ipsId, kind, key])
+  @@index([expiresAt])
+  @@map("cache_entries")
+}
+
+/// audit_log — registro de recomendaciones y acciones. Sin sensibles crudos.
+/// session_id es seudonimizado: sin FK, se conserva tras el borrado de la cuenta.
+model AuditLog {
+  id            String      @id @default(cuid())
+  sessionId     String      @map("session_id") // hash seudonimizado, sin FK
+  level         TriageLevel
+  reasons       Json
+  redFlags      Json        @map("red_flags")
+  tools         Json
+  modelVersion  String      @map("model_version")
+  promptVersion String      @map("prompt_version")
+  ruleVersion   String      @map("rule_version")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@map("audit_log")
+}
+
+/// calendar_links — solo escritura Waylo → Google (fase 5).
+model CalendarLink {
+  id           String         @id @default(cuid())
+  userId       String         @unique @map("user_id")
+  refreshToken String         @map("refresh_token") // cifrado en la aplicación
+  status       CalendarStatus @default(PENDING)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_links")
+}
+
+/// rag_chunks — índice semántico por IPS (pgvector). Se regenera al arrancar
+/// o al cambiar los markdown de `ips.ragDir`.
+model RagChunk {
+  id         String   @id @default(cuid())
+  ipsId      String   @map("ips_id")
+  docPath    String   @map("doc_path")
+  chunkIndex Int      @map("chunk_index")
+  text       String
+  // Modelo de embeddings LOCAL. 384 = all-MiniLM-L6-v2; cambiar si se elige otro.
+  embedding  Unsupported("vector(384)")
+
+  ips Ips @relation(fields: [ipsId], references: [id], onDelete: Cascade)
+
+  @@unique([ipsId, docPath, chunkIndex])
+  @@map("rag_chunks")
+}
+
+/// hospitals — base propia de hospitales de Colombia (seed de datos abiertos).
+/// N3/N4 dependen de ESTO, no de la IPS: funciona con la IPS caída.
+model Hospital {
+  id      Int     @id @default(autoincrement())
+  name    String
+  lat     Float
+  lng     Float
+  address String
+  phone   String? // el dataset abierto puede no traerlo
+  city    String
+
+  @@index([city])
+  @@map("hospitals")
+}
